@@ -1,4 +1,4 @@
-package org.jetbrains.plugins.template
+package com.github.gekal.intellijplatformpluginworkflowviewer
 
 import com.intellij.DynamicBundle
 import org.jetbrains.annotations.NonNls
