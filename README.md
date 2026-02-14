@@ -24,18 +24,25 @@
 
 ### 使い方
 1. `.workflow` という拡張子のファイルを作成します。
-2. ファイルにステップを1行ずつ記述します。
+2. ファイルにステップとトランジションを記述します。
+    * 例: `step('start')`
+    * 例: `transition(from: 'start', to: 'next')`
 3. エディタの右上にあるプレビューボタン（Markdownと同様）を切り替えることで、リアルタイムにフロー図が表示されます。
 4. プレビュー上のノードをドラッグして移動すると、その位置が記憶されます。
 5. 右下の「Reset Layout」ボタンで、自動レイアウトに戻すことができます。
 
-### サンプル (example.workflow)
-```text
-開始
-データの取得
-処理の実行
-結果の保存
-終了
+### サンプル (rock-paper-scissors.workflow)
+```groovy
+steps {
+    step('start', type: Start)
+    step('rock_paper_scissors')
+    step('draw', type: End)
+}
+
+transitions {
+    transition(from: 'start', to: 'rock_paper_scissors')
+    transition(from: 'rock_paper_scissors', to: 'draw')
+}
 ```
 <!-- Plugin description end -->
 

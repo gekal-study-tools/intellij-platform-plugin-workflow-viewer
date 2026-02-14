@@ -44,12 +44,16 @@ root/
 * `WorkflowFileEditorProvider.kt`:
     * `FileEditorProvider` を実装。`.workflow` ファイルに対して `TextEditorWithPreview` を提供。
 * `WorkflowPreviewEditor.kt`:
-    * `JBCefBrowser` を保持し、Reactアプリを表示。
+    * `JBCefBrowser` を保持し、Reactアプリを表示.
     * `JBCefJSQuery` でフロントエンドからの通知（座標保存、リフレッシュ、リセット）をハンドル。
     * ドキュメントの変更を監視し、リアルタイムにプレビューを更新。
     * ノードの座標を `PropertiesComponent` に保存・取得。
 * `DslParser.kt`:
-    * テキストを行ごとに読み込み、単純な連鎖構造（ノードとエッジ）としてパース。
+    * GroovyライクなDSLを解析し、ノード（steps）とエッジ（transitions）を抽出。
+    * 形式:
+        * `step('node_id', ...)` -> ノード
+        * `transition(from: 'source', to: 'target')` -> エッジ
+    * 従来の1行1ノード形式にもフォールバックとして対応。
 
 ## 4. Configuration
 * `plugin.xml`:
