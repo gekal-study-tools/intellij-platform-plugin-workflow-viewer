@@ -1,7 +1,13 @@
 package com.github.gekal.intellijplatformpluginworkflowviewer.toolWindow
 
+import com.github.gekal.intellijplatformpluginworkflowviewer.file.WorkflowFileType
 import com.google.gson.Gson
+import com.intellij.openapi.editor.event.DocumentEvent
+import com.intellij.openapi.editor.event.DocumentListener
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.FileEditorManagerEvent
+import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
@@ -30,6 +36,32 @@ class MyToolWindowFactory : ToolWindowFactory {
             // In development, you can use http://localhost:5173
             // For production, you would load the bundled index.html
             browser.loadURL("http://localhost:5173")
+
+            setupListeners()
+        }
+
+        private fun setupListeners() {
+            project.messageBus.connect().subscribe(FileEditorManagerListener.FILE_EDITOR_MANAGER, object : FileEditorManagerListener {
+                override fun selectionChanged(event: FileEditorManagerEvent) {
+                    refreshGraphIfWorkflow()
+                }
+            })
+
+            // Also listen to document changes for real-time updates
+            val editorManager = FileEditorManager.getInstance(project)
+            editorManager.selectedTextEditor?.document?.addDocumentListener(object : DocumentListener {
+                override fun documentChanged(event: DocumentEvent) {
+                    refreshGraphIfWorkflow()
+                }
+            })
+        }
+
+        private fun refreshGraphIfWorkflow() {
+            val editor = FileEditorManager.getInstance(project).selectedTextEditor ?: return
+            val file = FileDocumentManager.getInstance().getFile(editor.document) ?: return
+            if (file.fileType == WorkflowFileType) {
+                refreshGraph()
+            }
         }
 
         fun getContent(): JPanel {
@@ -74,7 +106,7 @@ object DslParser {
             nodes.add(Node(id, mapOf("label" to line.trim())))
             
             if (prevId != null) {
-                edges.add(Edge("edge_$index", prevId!!, id))
+                edges.add(Edge("edge_$index", prevId, id))
             }
             prevId = id
         }

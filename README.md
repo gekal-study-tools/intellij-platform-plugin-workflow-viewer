@@ -18,11 +18,22 @@
 - [ ] Configure the [CODECOV_TOKEN](https://docs.codecov.com/docs/quick-start) secret for automated test coverage reports on PRs
 
 <!-- Plugin description -->
-This Fancy IntelliJ Platform Plugin is going to be your implementation of the brilliant ideas that you have.
+`.workflow` 拡張子のファイルを可視化するプラグインです。
+テキストを1行ずつ読み込み、上から下へ流れるフロー図として表示します。
 
-This specific section is a source for the [plugin.xml](/src/main/resources/META-INF/plugin.xml) file which will be extracted by the [Gradle](/build.gradle.kts) during the build process.
+### 使い方
+1. `.workflow` という拡張子のファイルを作成します。
+2. ファイルにステップを1行ずつ記述します。
+3. `MyToolWindow` を開くと、リアルタイムにフロー図が表示されます。
 
-To keep everything working, do not remove `<!-- ... -->` sections. 
+### サンプル (example.workflow)
+```text
+開始
+データの取得
+処理の実行
+結果の保存
+終了
+```
 <!-- Plugin description end -->
 
 ## Installation
