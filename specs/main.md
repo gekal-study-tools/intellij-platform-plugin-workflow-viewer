@@ -37,19 +37,18 @@ root/
 ## 3. Backend Implementation (Kotlin)
 * `WorkflowFileType.kt`:
     * `.workflow` 拡張子を扱う `Language` および `LanguageFileType` を定義。
-* `MyToolWindowFactory.kt`:
-    * `ToolWindowFactory` を実装。
-    * `JBCefBrowser` を初期化し、Frontendのビルド成果物、または開発サーバー（http://localhost:5173）を表示する。
-    * アクティブなエディタが `.workflow` ファイルの場合、自動的または "Refresh" ボタン押下時に解析結果を送信する。
-* `DslParser.kt` (簡易実装):
+* `WorkflowFileEditorProvider.kt` & `WorkflowPreviewEditor.kt`:
+    * `FileEditorProvider` を実装し、`.workflow` ファイルに対して `TextEditorWithPreview` を提供する。
+    * `WorkflowPreviewEditor` は `JBCefBrowser` を保持し、ドキュメントの変更を監視してリアルタイムにプレビューを更新する。
+* `DslParser.kt`:
     * テキストを行ごとに読み込み、単純な連鎖としてパースする。
     * 行の内容を `label` とし、前の行から次の行へエッジを張る。
     * 結果を JSON 文字列（nodes, edges）に変換する（Gsonを使用）。
-    * `browser.executeJavaScript("window.updateGraph(...)")` を実行してFrontendにデータを送る。
+    * `browser.cefBrowser.executeJavaScript("window.updateGraph(...)")` を実行してFrontendにデータを送る。
 
 ## 4. Configuration
 * `plugin.xml`:
-    * ToolWindowの登録。
+    * `fileEditorProvider` の登録。
     * `fileType` の登録。
 * `build.gradle.kts`: 必要な依存関係（Gsonなど）の追加。
 

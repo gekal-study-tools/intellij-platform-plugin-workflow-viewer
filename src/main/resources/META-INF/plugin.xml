@@ -10,7 +10,7 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <fileType name="Workflow File" language="Workflow" implementationClass="com.github.gekal.intellijplatformpluginworkflowviewer.file.WorkflowFileType" extensions="workflow"/>
-        <toolWindow factoryClass="com.github.gekal.intellijplatformpluginworkflowviewer.toolWindow.MyToolWindowFactory" id="MyToolWindow"/>
+        <fileEditorProvider implementation="com.github.gekal.intellijplatformpluginworkflowviewer.editor.WorkflowFileEditorProvider"/>
         <postStartupActivity implementation="com.github.gekal.intellijplatformpluginworkflowviewer.startup.MyProjectActivity" />
     </extensions>
 </idea-plugin>
