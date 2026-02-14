@@ -32,11 +32,11 @@ root/
     * データを受け取ったら、React Flowの `useNodesState`, `useEdgesState` を更新し、`fitView()` で全体を表示する。
 
 ## 3. Backend Implementation (Java)
-* `DslGraphToolWindowFactory.java`:
+* `DslGraphToolWindowFactory.kt`:
     * `ToolWindowFactory` を実装。
     * `JBCefBrowser` を初期化し、Frontendのビルド成果物、または開発サーバー（http://localhost:5173）を表示する。
     * "Refresh" ボタンを配置し、クリック時に現在のエディタのテキストを取得する。
-* `DslParser.java` (簡易実装):
+* `DslParser.kt` (簡易実装):
     * テキストを行ごとに読み込み、単純な連鎖としてパースする。
     * 行の内容を `label` とし、前の行から次の行へエッジを張る。
     * 結果を JSON 文字列（nodes, edges）に変換する（Gsonを使用）。
@@ -52,6 +52,6 @@ root/
 2. `frontend/package.json` (dependencies part)
 3. `frontend/src/App.tsx` (Complete logic with Dagre layout)
 4. `src/main/resources/META-INF/plugin.xml`
-5. `src/main/java/.../DslGraphToolWindowFactory.java`
+5. `src/main/java/.../DslGraphToolWindowFactory.kt`
 
 実装は「とりあえず動く」レベルではなく、エラーハンドリングや型の整合性を考慮した実用的なレベルでお願いします。

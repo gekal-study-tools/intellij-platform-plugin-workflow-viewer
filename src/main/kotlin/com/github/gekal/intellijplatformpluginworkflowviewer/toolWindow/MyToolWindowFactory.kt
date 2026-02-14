@@ -1,45 +1,84 @@
 package com.github.gekal.intellijplatformpluginworkflowviewer.toolWindow
 
-import com.intellij.openapi.components.service
-import com.intellij.openapi.diagnostic.thisLogger
+import com.google.gson.Gson
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
-import com.intellij.ui.components.JBLabel
-import com.intellij.ui.components.JBPanel
 import com.intellij.ui.content.ContentFactory
-import com.github.gekal.intellijplatformpluginworkflowviewer.MyBundle
-import com.github.gekal.intellijplatformpluginworkflowviewer.services.MyProjectService
+import com.intellij.ui.jcef.JBCefBrowser
+import java.awt.BorderLayout
 import javax.swing.JButton
-
+import javax.swing.JPanel
 
 class MyToolWindowFactory : ToolWindowFactory {
 
-    init {
-        thisLogger().warn("Don't forget to remove all non-needed sample code files with their corresponding registration entries in `plugin.xml`.")
-    }
-
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-        val myToolWindow = MyToolWindow(toolWindow)
+        val myToolWindow = MyToolWindow(project)
         val content = ContentFactory.getInstance().createContent(myToolWindow.getContent(), null, false)
         toolWindow.contentManager.addContent(content)
     }
 
     override fun shouldBeAvailable(project: Project) = true
 
-    class MyToolWindow(toolWindow: ToolWindow) {
+    class MyToolWindow(private val project: Project) {
 
-        private val service = toolWindow.project.service<MyProjectService>()
+        private val browser = JBCefBrowser()
+        private val gson = Gson()
 
-        fun getContent() = JBPanel<JBPanel<*>>().apply {
-            val label = JBLabel(MyBundle.message("randomLabel", "?"))
-
-            add(label)
-            add(JButton(MyBundle.message("shuffle")).apply {
-                addActionListener {
-                    label.text = MyBundle.message("randomLabel", service.getRandomNumber())
-                }
-            })
+        init {
+            // In development, you can use http://localhost:5173
+            // For production, you would load the bundled index.html
+            browser.loadURL("http://localhost:5173")
         }
+
+        fun getContent(): JPanel {
+            val panel = JPanel(BorderLayout())
+            panel.add(browser.component, BorderLayout.CENTER)
+
+            val refreshButton = JButton("Refresh")
+            refreshButton.addActionListener {
+                refreshGraph()
+            }
+            panel.add(refreshButton, BorderLayout.SOUTH)
+
+            return panel
+        }
+
+        private fun refreshGraph() {
+            val editor = FileEditorManager.getInstance(project).selectedTextEditor ?: return
+            val text = editor.document.text
+            val (nodes, edges) = DslParser.parse(text)
+            
+            val nodesJson = gson.toJson(nodes)
+            val edgesJson = gson.toJson(edges)
+            
+            val js = "window.updateGraph($nodesJson, $edgesJson)"
+            browser.cefBrowser.executeJavaScript(js, browser.cefBrowser.url, 0)
+        }
+    }
+}
+
+object DslParser {
+    data class Node(val id: String, val data: Map<String, String>)
+    data class Edge(val id: String, val source: String, val target: String)
+
+    fun parse(text: String): Pair<List<Node>, List<Edge>> {
+        val lines = text.lines().filter { it.isNotBlank() }
+        val nodes = mutableListOf<Node>()
+        val edges = mutableListOf<Edge>()
+
+        var prevId: String? = null
+        lines.forEachIndexed { index, line ->
+            val id = "node_$index"
+            nodes.add(Node(id, mapOf("label" to line.trim())))
+            
+            if (prevId != null) {
+                edges.add(Edge("edge_$index", prevId!!, id))
+            }
+            prevId = id
+        }
+
+        return Pair(nodes, edges)
     }
 }
