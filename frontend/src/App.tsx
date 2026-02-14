@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import ReactFlow, {
   useNodesState,
   useEdgesState,
@@ -8,6 +8,9 @@ import ReactFlow, {
   Position,
   useReactFlow,
   ReactFlowProvider,
+  Background,
+  Controls,
+  Panel,
 } from 'reactflow';
 import dagre from 'dagre';
 import 'reactflow/dist/style.css';
@@ -37,11 +40,14 @@ const getLayoutedElements = (nodes: any[], edges: any[], direction = 'TB') => {
     node.targetPosition = isHorizontal ? Position.Left : Position.Top;
     node.sourcePosition = isHorizontal ? Position.Right : Position.Bottom;
 
-    // We are shifting the dagre node position (which is center-based) to top-left
-    node.position = {
-      x: nodeWithPosition.x - nodeWidth / 2,
-      y: nodeWithPosition.y - nodeHeight / 2,
-    };
+    // Only set position if not already provided
+    if (!node.position || (node.position.x === 0 && node.position.y === 0)) {
+      // We are shifting the dagre node position (which is center-based) to top-left
+      node.position = {
+        x: nodeWithPosition.x - nodeWidth / 2,
+        y: nodeWithPosition.y - nodeHeight / 2,
+      };
+    }
 
     return node;
   });
@@ -60,15 +66,55 @@ function Flow() {
   );
 
   // Expose updateGraph function to window for Java JCEF communication
-  (window as any).updateGraph = (newNodes: any[], newEdges: any[]) => {
-    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
-      newNodes,
-      newEdges
+  useEffect(() => {
+    (window as any).updateGraph = (newNodes: any[], newEdges: any[]) => {
+      const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+        newNodes,
+        newEdges
+      );
+      setNodes([...layoutedNodes]);
+      setEdges([...layoutedEdges]);
+      setTimeout(() => fitView(), 50);
+    };
+  }, [setNodes, setEdges, fitView]);
+
+  const onNodeDragStop = useCallback(
+    (_: React.MouseEvent, node: any) => {
+      if ((window as any).cefQuery) {
+        (window as any).cefQuery({
+          request: JSON.stringify({
+            type: 'NODE_MOVED',
+            nodeId: node.id,
+            position: node.position,
+          }),
+          onSuccess: () => {},
+          onFailure: () => {},
+        });
+      }
+    },
+    []
+  );
+
+  const onRefresh = useCallback(() => {
+    if ((window as any).cefQuery) {
+      (window as any).cefQuery({
+        request: JSON.stringify({ type: 'REFRESH' }),
+        onSuccess: () => {},
+        onFailure: () => {},
+      });
+    }
+  }, []);
+
+  const onReset = useCallback(() => {
+    setNodes((nds) =>
+      nds.map((node) => ({
+        ...node,
+        position: { x: 0, y: 0 },
+      }))
     );
-    setNodes([...layoutedNodes]);
-    setEdges([...layoutedEdges]);
-    setTimeout(() => fitView(), 50);
-  };
+    // After resetting to 0,0, updateGraph will re-apply dagre layout
+    onRefresh();
+  }, [setNodes, onRefresh]);
 
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
@@ -78,8 +124,18 @@ function Flow() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodeDragStop={onNodeDragStop}
         fitView
-      />
+      >
+        <Background />
+        <Controls />
+        <Panel position="top-right">
+          <button onClick={onRefresh}>Refresh</button>
+          <button onClick={onReset} style={{ marginLeft: '4px' }}>
+            Reset Layout
+          </button>
+        </Panel>
+      </ReactFlow>
     </div>
   );
 }
