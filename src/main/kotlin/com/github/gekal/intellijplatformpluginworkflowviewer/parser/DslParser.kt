@@ -1,5 +1,10 @@
 package com.github.gekal.intellijplatformpluginworkflowviewer.parser
 
+import groovy.lang.Binding
+import groovy.lang.Closure
+import groovy.lang.GroovyShell
+import groovy.lang.Script
+import org.codehaus.groovy.control.CompilerConfiguration
 import java.util.regex.Pattern
 
 object DslParser {
@@ -14,17 +19,37 @@ object DslParser {
         val nodes = mutableListOf<Node>()
         val edges = mutableListOf<Edge>()
 
-        // Step regex: step('id', ...) or step('id') { ... }
+        try {
+            val config = CompilerConfiguration()
+            config.scriptBaseClass = WorkflowScript::class.java.name
+            
+            val binding = Binding()
+            binding.setVariable("_nodes", nodes)
+            binding.setVariable("_edges", edges)
+            
+            val shell = GroovyShell(binding, config)
+            shell.evaluate(text)
+        } catch (e: Throwable) {
+            // Fallback to regex if Groovy fails
+            return parseWithRegex(text)
+        }
+
+        if (nodes.isEmpty() && edges.isEmpty()) {
+            return parseWithRegex(text)
+        }
+
+        return Pair(nodes, edges)
+    }
+
+    private fun parseWithRegex(text: String): Pair<List<Node>, List<Edge>> {
+        val nodes = mutableListOf<Node>()
+        val edges = mutableListOf<Edge>()
+
         val stepPattern = Pattern.compile("""step\s*\(\s*['"]([^'"]+)['"]""")
-        // Transition regex: transition(from: 'source', to: 'target')
         val transitionPattern = Pattern.compile("""transition\s*\(\s*from\s*:\s*['"]([^'"]+)['"]\s*,\s*to\s*:\s*['"]([^'"]+)['"]\s*\)""")
 
-        val lines = text.lines()
-        
-        lines.forEach { line ->
+        text.lines().forEach { line ->
             val trimmedLine = line.trim()
-            
-            // Parse steps
             val stepMatcher = stepPattern.matcher(trimmedLine)
             if (stepMatcher.find()) {
                 val nodeId = stepMatcher.group(1)
@@ -32,8 +57,6 @@ object DslParser {
                     nodes.add(Node(nodeId, null, mapOf("label" to nodeId)))
                 }
             }
-            
-            // Parse transitions
             val transitionMatcher = transitionPattern.matcher(trimmedLine)
             if (transitionMatcher.find()) {
                 val from = transitionMatcher.group(1)
@@ -43,7 +66,6 @@ object DslParser {
             }
         }
 
-        // If no steps or transitions found, fallback to old line-by-line parsing for backward compatibility or simple files
         if (nodes.isEmpty() && edges.isEmpty()) {
             var prevId: String? = null
             text.lines().filter { it.isNotBlank() }.forEachIndexed { index, rawLine ->
@@ -58,5 +80,71 @@ object DslParser {
         }
 
         return Pair(nodes, edges)
+    }
+
+    abstract class WorkflowScript : Script() {
+        @Suppress("UNCHECKED_CAST")
+        private val nodes: MutableList<Node> get() = binding.getVariable("_nodes") as MutableList<Node>
+        @Suppress("UNCHECKED_CAST")
+        private val edges: MutableList<Edge> get() = binding.getVariable("_edges") as MutableList<Edge>
+
+        fun name(n: Any?) {}
+
+        fun steps(cl: Closure<*>) {
+            cl.delegate = this
+            cl.resolveStrategy = Closure.DELEGATE_FIRST
+            cl.call()
+        }
+
+        fun transitions(cl: Closure<*>) {
+            cl.delegate = this
+            cl.resolveStrategy = Closure.DELEGATE_FIRST
+            cl.call()
+        }
+
+        fun step(id: String) {
+            if (nodes.none { it.id == id }) {
+                nodes.add(Node(id, null, mapOf("label" to id)))
+            }
+        }
+
+        fun step(id: String, args: Map<String, Any>) {
+            step(id)
+        }
+
+        fun step(id: String, cl: Closure<*>) {
+            step(id)
+            cl.delegate = this
+            cl.resolveStrategy = Closure.DELEGATE_FIRST
+            cl.call()
+        }
+
+        fun step(id: String, args: Map<String, Any>, cl: Closure<*>) {
+            step(id)
+            cl.delegate = this
+            cl.resolveStrategy = Closure.DELEGATE_FIRST
+            cl.call()
+        }
+
+        fun transition(args: Map<String, Any>) {
+            val from = args["from"]?.toString()
+            val to = args["to"]?.toString()
+            if (from != null && to != null) {
+                val edgeId = "edge_${from}_${to}"
+                edges.add(Edge(edgeId, from, to))
+            }
+        }
+
+        fun transition(args: Map<String, Any>, cl: Closure<*>) {
+            transition(args)
+            cl.delegate = this
+            cl.resolveStrategy = Closure.DELEGATE_FIRST
+            cl.call()
+        }
+
+        fun iterm(name: String) = name
+
+        fun methodMissing(name: String, args: Any?): Any? = null
+        fun propertyMissing(name: String): Any? = name
     }
 }
