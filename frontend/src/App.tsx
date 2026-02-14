@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import ReactFlow, {
   useNodesState,
   useEdgesState,
@@ -59,6 +59,7 @@ function Flow() {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const { fitView } = useReactFlow();
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
 
   const onConnect = useCallback(
     (params: Connection | Edge) => setEdges((eds) => addEdge(params, eds)),
@@ -74,9 +75,13 @@ function Flow() {
       );
       setNodes([...layoutedNodes]);
       setEdges([...layoutedEdges]);
-      setTimeout(() => fitView(), 50);
+      
+      if (isFirstLoad) {
+        setTimeout(() => fitView({ padding: 0.2 }), 100);
+        setIsFirstLoad(false);
+      }
     };
-  }, [setNodes, setEdges, fitView]);
+  }, [setNodes, setEdges, fitView, isFirstLoad]);
 
   const onNodeDragStop = useCallback(
     (_: React.MouseEvent, node: any) => {
@@ -106,15 +111,17 @@ function Flow() {
   }, []);
 
   const onReset = useCallback(() => {
-    setNodes((nds) =>
-      nds.map((node) => ({
-        ...node,
-        position: { x: 0, y: 0 },
-      }))
-    );
-    // After resetting to 0,0, updateGraph will re-apply dagre layout
-    onRefresh();
-  }, [setNodes, onRefresh]);
+    if ((window as any).cefQuery) {
+      (window as any).cefQuery({
+        request: JSON.stringify({ type: 'RESET' }),
+        onSuccess: () => {
+          onRefresh();
+          setTimeout(() => fitView({ padding: 0.2 }), 100);
+        },
+        onFailure: () => {},
+      });
+    }
+  }, [onRefresh, fitView]);
 
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
@@ -129,7 +136,7 @@ function Flow() {
       >
         <Background />
         <Controls />
-        <Panel position="top-right">
+        <Panel position="bottom-right" style={{ marginBottom: '20px' }}>
           <button onClick={onRefresh}>Refresh</button>
           <button onClick={onReset} style={{ marginLeft: '4px' }}>
             Reset Layout

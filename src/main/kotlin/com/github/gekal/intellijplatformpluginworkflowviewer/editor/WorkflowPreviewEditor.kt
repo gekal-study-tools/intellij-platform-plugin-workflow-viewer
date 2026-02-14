@@ -3,15 +3,17 @@ package com.github.gekal.intellijplatformpluginworkflowviewer.editor
 import com.github.gekal.intellijplatformpluginworkflowviewer.parser.DslParser
 import com.google.gson.Gson
 import com.google.gson.JsonParser
-import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.event.DocumentEvent
 import com.intellij.openapi.editor.event.DocumentListener
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.fileEditor.FileEditorLocation
 import com.intellij.openapi.fileEditor.FileEditorState
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.UserDataHolderBase
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.jcef.JBCefBrowser
 import com.intellij.ui.jcef.JBCefBrowserBase
 import com.intellij.ui.jcef.JBCefJSQuery
@@ -26,6 +28,9 @@ class WorkflowPreviewEditor(private val project: Project, private val document: 
     private val browser = JBCefBrowser()
     private val gson = Gson()
     private val jsQuery = JBCefJSQuery.create(browser as JBCefBrowserBase)
+    private val virtualFile: VirtualFile? = FileDocumentManager.getInstance().getFile(document)
+    private val properties = PropertiesComponent.getInstance(project)
+    private val positionsKey: String = "workflow_positions_${virtualFile?.path ?: "unknown"}"
 
     init {
         jsQuery.addHandler { request ->
@@ -36,11 +41,15 @@ class WorkflowPreviewEditor(private val project: Project, private val document: 
                     val position = json.get("position").asJsonObject
                     val x = position.get("x").asDouble
                     val y = position.get("y").asDouble
-                    updateNodePositionInDocument(nodeId, x, y)
+                    saveNodePosition(nodeId, x, y)
                 }
 
                 "REFRESH" -> {
                     refreshGraph()
+                }
+
+                "RESET" -> {
+                    resetNodePositions()
                 }
             }
             null
@@ -65,31 +74,23 @@ class WorkflowPreviewEditor(private val project: Project, private val document: 
         }, this)
     }
 
-    private fun updateNodePositionInDocument(nodeId: String, x: Double, y: Double) {
-        val index = nodeId.removePrefix("node_").toIntOrNull() ?: return
+    private fun saveNodePosition(nodeId: String, x: Double, y: Double) {
+        val currentPositions = getStoredPositions().toMutableMap()
+        currentPositions[nodeId] = DslParser.Position(x, y)
+        properties.setValue(positionsKey, gson.toJson(currentPositions))
+    }
 
-        WriteCommandAction.runWriteCommandAction(project) {
-            isUpdatingFromWebview = true
-            try {
-                val lines = document.text.lines().toMutableList()
-                var currentIdx = 0
-                for (i in lines.indices) {
-                    if (lines[i].isNotBlank()) {
-                        if (currentIdx == index) {
-                            val line = lines[i].trim()
-                            val posRegex = """(.*)\{x:\s*([\d.-]+),\s*y:\s*([\d.-]+)\}""".toRegex()
-                            val match = posRegex.find(line)
-                            val label = if (match != null) match.groupValues[1].trim() else line
-                            lines[i] = "$label {x: ${x.toInt()}, y: ${y.toInt()}}"
-                            break
-                        }
-                        currentIdx++
-                    }
-                }
-                document.setText(lines.joinToString("\n"))
-            } finally {
-                isUpdatingFromWebview = false
-            }
+    private fun resetNodePositions() {
+        properties.unsetValue(positionsKey)
+    }
+
+    private fun getStoredPositions(): Map<String, DslParser.Position> {
+        val json = properties.getValue(positionsKey) ?: return emptyMap()
+        return try {
+            val type = object : com.google.gson.reflect.TypeToken<Map<String, DslParser.Position>>() {}.type
+            gson.fromJson(json, type)
+        } catch (e: Exception) {
+            emptyMap()
         }
     }
 
@@ -98,7 +99,18 @@ class WorkflowPreviewEditor(private val project: Project, private val document: 
     private fun refreshGraph() {
         val text = document.text
         val (nodes, edges) = DslParser.parse(text)
-        val nodesJson = gson.toJson(nodes)
+        val storedPositions = getStoredPositions()
+
+        val updatedNodes = nodes.map { node ->
+            val storedPos = storedPositions[node.id]
+            if (storedPos != null) {
+                node.copy(position = storedPos)
+            } else {
+                node
+            }
+        }
+
+        val nodesJson = gson.toJson(updatedNodes)
         val edgesJson = gson.toJson(edges)
         val js = "window.updateGraph($nodesJson, $edgesJson)"
         browser.cefBrowser.executeJavaScript(js, browser.cefBrowser.url, 0)
